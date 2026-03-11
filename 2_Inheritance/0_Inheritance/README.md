@@ -180,9 +180,12 @@ Check the following requirements:
 4. `<sub class>` needs all member/method defined in `<base class>`
 
 ---
-# Polymorphism intro
-以 [pet.cpp](./Pet/pet.cpp) 為例子，`pet *nose = (pet *)new cat();` 就是多型，執行後可以看到以下輸出結果
 
+# upcasting
+> 在進入下一章介紹 polymorphism 之前的介紹與實驗
+
+以 [pet.cpp](./Pet/pet.cpp) 為例子，`pet *nose = (pet *)new cat();` 實現了 upcasting (derived → base pointer)，執行後可以看到以下輸出結果
+> 更多有關 upcasting 可以參考[這篇文章](https://hackmd.io/@S-gwYZv8RkKi_mnmtTIOCw/SJuXZQJf1l)
 ```cpp
 pet constructor // insect
 pet constructor // pussy 先建立父 constructor
@@ -200,3 +203,56 @@ pet destructor
 ```
 
 - When you use a subclass to override a base class’s method, C++ will use the current type to determine the method
+
+## note
+
+### 為何 pet* 仍然可以指向 cat 物件？
+
+- 執行 `pet *nose = new cat();` 後，heap 記憶體分配:
+    ```
+    cat object
+    +-------------------+
+    | pet subobject     |
+    |   p               |
+    |   c               |
+    |   padding         |
+    +-------------------+
+    | cat member        |
+    |   a               |
+    +-------------------+
+    ```
+- 而 nose 指標(`pet*`)指向物件(`cat`)的 head
+- compile-time dispatch
+    - 因為[程式](./pet_with_polymorphism/pet.cpp) 定義的是 `void speak()`，他不是 virtual function，因此不會使用 runtime polymorphism，而是 compile-time binding
+    - 當編譯器看到 `pointer type = pet*` 就決定呼叫 `pet::speak()`，完全不會看 object type。
+  - 因此當呼叫 `nose->speak();`，實際執行的是 `pet::speak()`
+
+
+### 為何刪除 nose 指向的物件不會執行子類別的 destructor
+執行 `delete` 其實會做兩件事情
+1. 呼叫 destructor
+2. 呼叫 operator delete 釋放記憶體
+
+在執行 `pet* nose = new cat();` 後發生了 `operator new(sizeof(cat))`，因而配置了以下 heap 記憶體區塊給這個物件，並讓 nose 指向該物件
+```
+┌───────────────┐
+│ cat object    │
+│               │
+│ pet::p        │
+│ pet::c        │
+│ padding       │
+│ cat::a        │
+└───────────────┘
+```
+由於 operator delete 傳入的是 `void* ptr`，所以即便 nose 是 pet*，對 delete 而言他還是不知道 ptr 的類型，只會操作 ptr 所指向的 address
+- operator delete 原型
+    ```c
+    void operator delete(void* ptr);
+    ```
+- 由於 pet 的 destructor 不是 virtual，因此 `delete nose` 實際上做的事情如下
+    ```c
+    nose->~pet();            // 呼叫 destructor
+    operator delete(nose);   // 釋放記憶體
+    ```
+但因為 heap allocator 會在 memory 前面存 metadata，所以 `free(ptr)` 會把整個 allocation block (`sizeof(cat)`) 的記憶體區塊給 free 掉。詳情可以實際執行[這個檔案](./pet_with_polymorphism/detailed-pet.cpp)去看
+> 雖然只呼叫父類別的 destructor，但子類別的記憶體區塊也被釋放

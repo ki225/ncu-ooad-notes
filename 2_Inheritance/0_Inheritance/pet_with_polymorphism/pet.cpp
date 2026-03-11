@@ -5,14 +5,15 @@ class pet {
 public:
     pet() { cout << "pet constructor" << endl; }
     ~pet() { cout << "pet destructor" << endl; }
-    virtual void speak() { cout << "Growl " << endl; }
+    void speak() { cout << "Growl " << endl; }
 };
 
 class cat : public pet {
 public:
     cat() { cout << "cat constructor" << endl; }
     ~cat() { cout << "cat destructor" << endl; }
-    void speak() { cout << "meow" << endl; }
+
+    void speak() { cout << "meow" << endl; } 
     int* return_a_addr() { return &a; }
     int a;
 };
